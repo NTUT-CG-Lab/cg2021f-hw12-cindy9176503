@@ -23,7 +23,7 @@
         so.addChild("透過模型分割出心臟，輸出心臟遮罩圖片", 6, true);
         so.addChild("心臟遮罩圖片轉成nrrd檔案 ", 1, true);
         so.addChild("使用Three.js呈現模型", 1, true);
-        so.addChild("呈現真實(Ground Truth)與預測的模型", 2, false);
+        so.addChild("呈現真實(Ground Truth)與預測的模型", 2, true);
 
         //產生自評表，參數如下所示
         so.renderModal(
@@ -52,9 +52,10 @@
     import {NRRDLoader} from './three/examples/jsm/loaders/NRRDLoader.js';
     import {VolumeRenderShader1} from './three/examples/jsm/shaders/VolumeShader.js';
 
-    let renderer, scene, camera, controls, material, volconfig, cmtextures;
+    let renderer, scene, camera, controls, material, volconfig, cmtextures, meshes = [], offset = -300;
 
-    let modelPath = './data/nrrd_data/ID00423637202312137826377_gt_mask.nrrd';
+    let modelPath = './data/nrrd_data/ID00423637202312137826377_mask.nrrd';
+    let modelgtPath = './data/nrrd_data/ID00423637202312137826377_gt_mask.nrrd';
 
     volconfig = {clim1: 0, clim2: 1, renderstyle: 'iso', isothreshold: 0.15, colormap: 'red'};
 
@@ -70,7 +71,8 @@
         createControl();
 
         // Load the data ...
-        loadNRRD(modelPath);
+        loadNRRD(modelPath, 'orange');
+        loadNRRD(modelgtPath, 'red');
 
         window.addEventListener('resize', onWindowResize);
     }
@@ -92,7 +94,7 @@
         document.body.appendChild(renderer.domElement);
     }
 
-    function createControl() {
+    function createControl(m) {
         // Create controls
         controls = new OrbitControls(camera, renderer.domElement);
         controls.addEventListener('change', render);
@@ -102,7 +104,8 @@
         controls.update();
     }
 
-    function loadNRRD(modelPath) {
+    function loadNRRD(modelPath, color) {
+
         new NRRDLoader().load(modelPath, function (volume) {
             const texture = new THREE.DataTexture3D(volume.data, volume.xLength, volume.yLength, volume.zLength);
             texture.format = THREE.RedFormat;
@@ -112,7 +115,8 @@
 
             // Colormap textures
             cmtextures = {
-                red: new THREE.TextureLoader().load('./three/examples/textures/red.png', render)
+                red: new THREE.TextureLoader().load('./three/examples/textures/red.png', render),
+                orange: new THREE.TextureLoader().load('./three/examples/textures/orange.png', render)
             };
 
             // Material
@@ -125,7 +129,7 @@
             uniforms["u_clim"].value.set(volconfig.clim1, volconfig.clim2);
             uniforms["u_renderstyle"].value = 1; // 1: ISO
             uniforms["u_renderthreshold"].value = volconfig.isothreshold; // For ISO renderstyle
-            uniforms["u_cmdata"].value = cmtextures[volconfig.colormap];
+            uniforms["u_cmdata"].value = cmtextures[color];
 
             material = new THREE.ShaderMaterial({
                 uniforms: uniforms,
@@ -139,10 +143,18 @@
             geometry.translate(volume.xLength / 2 - 0.5, volume.yLength / 2 - 0.5, volume.zLength / 2 - 0.5);
 
             const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.x += offset;
+            offset += 500;
+
+            meshes.push(mesh);
             scene.add(mesh);
 
             render();
+
+            createControl(mesh);
         });
+
+        
     }
 
     function updateUniforms() {
